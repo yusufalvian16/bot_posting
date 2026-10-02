@@ -40,7 +40,9 @@ from modules.csv_handler import (
     get_pending_rows,
     read_csv_data,
     save_csv_data,
+    scan_media_files_in_dir,
     update_row_status,
+    write_canva_csv,
     write_new_csv,
 )
 from scraper_keyword import scrape_alphabet_soup
@@ -569,12 +571,23 @@ class AutoPostingGUI(ctk.CTk):
             height=34,
             command=self._resume_posting_from_csv,
         )
-        self.resume_btn.pack(side="left", padx=(0, 8))
+        self.resume_btn.pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            t_row1,
+            text="📁 Import Folder Video",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            width=150,
+            height=34,
+            fg_color="#4f46e5",
+            hover_color="#4338ca",
+            command=self._batch_import_video_folder,
+        ).pack(side="left", padx=4)
 
         ctk.CTkButton(
             t_row1,
             text="✏️ Edit Baris",
-            width=100,
+            width=95,
             height=34,
             command=self._edit_selected_row,
         ).pack(side="left", padx=4)
@@ -878,6 +891,75 @@ class AutoPostingGUI(ctk.CTk):
         self.log(f"Memuat file CSV: {self.active_csv_path.name}")
         self.log(f"Platform: {detected_plat} | Siap melanjutkan posting dari baris ke-{first_pending_num} (Total pending: {len(pending)}).")
 
+    def _batch_import_video_folder(self):
+        """
+        Memetakan otomatis seluruh file video dalam folder (misal 100 video hasil Canva)
+        ke kolom 'video_path' baris-baris file CSV aktif dengan natural sorting.
+        """
+        if not self.active_csv_path or not self.active_csv_rows:
+            messagebox.showwarning("Peringatan", "Buka file CSV antrian terlebih dahulu sebelum mengimpor folder video.")
+            return
+
+        init_dir = str(ASSETS_DIR / "videos" if (ASSETS_DIR / "videos").exists() else BASE_DIR)
+        folder = filedialog.askdirectory(
+            title="Pilih Folder Berisi File Video (Hasil Canva)",
+            initialdir=init_dir,
+        )
+        if not folder:
+            return
+
+        folder_path = Path(folder)
+        videos = scan_media_files_in_dir(folder_path)
+        if not videos:
+            messagebox.showerror(
+                "Tidak Ada Video",
+                f"Tidak ditemukan file video (.mp4, .mov, .mkv, .webm, .avi) di folder:\n{folder_path}"
+            )
+            return
+
+        total_rows = len(self.active_csv_rows)
+        total_videos = len(videos)
+
+        confirm = messagebox.askyesno(
+            "Konfirmasi Import Folder Video",
+            f"Ditemukan {total_videos} file video di folder:\n{folder_path.name}\n\n"
+            f"File CSV memiliki {total_rows} baris antrian.\n"
+            f"Sistem akan memetakan file video berurutan secara alami (1, 2, ... {total_videos}) ke kolom 'video_path'.\n\n"
+            "Lanjutkan pemetaan?",
+        )
+        if not confirm:
+            return
+
+        # Pastikan kolom video_path ada di fieldnames
+        if "video_path" not in self.active_csv_fieldnames:
+            self.active_csv_fieldnames.append("video_path")
+
+        mapped_count = 0
+        for idx in range(min(total_rows, total_videos)):
+            v = videos[idx]
+            try:
+                rel_path = str(v.relative_to(BASE_DIR))
+            except ValueError:
+                rel_path = str(v)
+
+            self.active_csv_rows[idx]["video_path"] = rel_path
+            mapped_count += 1
+
+        # Simpan perubahan ke file CSV
+        save_csv_data(self.active_csv_path, self.active_csv_fieldnames, self.active_csv_rows)
+
+        # Refresh tampilan tabel & progres
+        self._update_csv_progress_ui()
+        self._filter_csv_table()
+
+        msg = f"✅ Berhasil memetakan {mapped_count} video ke baris 1 s/d {mapped_count}!"
+        if total_videos < total_rows:
+            msg += f"\n\nCatatan: Video hanya ada {total_videos}, sisa {total_rows - total_videos} baris belum terisi video baru."
+        elif total_videos > total_rows:
+            msg += f"\n\nCatatan: Ada {total_videos - total_rows} file video tersisa yang belum dipetakan karena baris CSV lebih sedikit."
+
+        messagebox.showinfo("Import Selesai", msg)
+
     def _edit_selected_row(self):
         sel = self.csv_tree.selection()
         if not sel:
@@ -1108,6 +1190,17 @@ class AutoPostingGUI(ctk.CTk):
         )
         self.export_csv_btn.pack(side="left", padx=5)
 
+        self.export_canva_btn = ctk.CTkButton(
+            btn_frame,
+            text="🎨 Ekspor ke Canva (Bulk Create)",
+            font=ctk.CTkFont(weight="bold"),
+            fg_color="#7c3aed",
+            hover_color="#6d28d9",
+            state="disabled",
+            command=self._export_canva_csv,
+        )
+        self.export_canva_btn.pack(side="left", padx=5)
+
         self.open_csv_btn = ctk.CTkButton(
             btn_frame,
             text="📂 Buka Folder Hasil CSV",
@@ -1214,6 +1307,46 @@ class AutoPostingGUI(ctk.CTk):
         if should_switch:
             self.tabview.set("📝 Template Builder")
 
+    def _export_canva_csv(self):
+        """
+        Mengekspor daftar kata kunci ke format CSV 1-kolom khusus untuk Canva 'Bulk Create' (Buat Banyak).
+        Header: Kata Kunci
+        """
+        data_to_save = self.filtered_keywords if self.filtered_keywords else self.all_keywords
+        if not data_to_save:
+            messagebox.showwarning("Peringatan", "Belum ada data kata kunci untuk diekspor ke Canva.")
+            return
+
+        seed = self.seed_entry.get().strip() or "canva"
+        seed_slug = seed.lower().replace(" ", "_")
+        default_name = f"canva_bulk_{seed_slug}.csv"
+
+        out_file = filedialog.asksaveasfilename(
+            initialdir=str(DATA_DIR),
+            initialfile=default_name,
+            title="Simpan CSV untuk Canva Bulk Create (1 Kolom)",
+            defaultextension=".csv",
+            filetypes=[("CSV Files", "*.csv")],
+        )
+        if not out_file:
+            return
+
+        target_path = Path(out_file)
+        keywords_list = [item["keyword"] for item in data_to_save if item.get("keyword")]
+        write_canva_csv(target_path, keywords_list)
+
+        messagebox.showinfo(
+            "Ekspor Canva Berhasil",
+            f"✅ Berhasil mengekspor {len(keywords_list)} kata kunci untuk Canva!\n\n"
+            f"Lokasi: {target_path.name}\n\n"
+            "💡 Panduan Pembuatan Banyak Video di Canva (Bulk Create):\n"
+            "1. Buka Canva di browser -> buat desain Video TikTok/Reels/Shorts.\n"
+            "2. Di bilah menu kiri, klik 'Apps' -> cari dan klik 'Bulk Create' (Buat Banyak).\n"
+            "3. Klik 'Upload CSV' lalu pilih file ini.\n"
+            "4. Klik kanan pada elemen teks judul di kanvas -> pilih 'Connect data' -> 'Kata Kunci'.\n"
+            "5. Klik Lanjutkan & Generate -> Canva akan otomatis membuat semua video untuk Anda!"
+        )
+
     def _copy_keywords_to_clipboard(self):
         data = self.filtered_keywords if self.filtered_keywords else self.all_keywords
         if not data:
@@ -1250,6 +1383,7 @@ class AutoPostingGUI(ctk.CTk):
         self.scrape_btn.configure(state="normal", text="⚡ Scrape Google Suggest (Alphabet Soup)")
         self.open_csv_btn.configure(state="normal")
         self.export_csv_btn.configure(state="normal")
+        self.export_canva_btn.configure(state="normal")
         self.copy_keywords_btn.configure(state="normal")
         self.last_scraped_csv = out_path
 
@@ -1319,11 +1453,20 @@ class AutoPostingGUI(ctk.CTk):
         m_box = ctk.CTkFrame(frame, fg_color="transparent")
         m_box.pack(fill="x", pady=(0, 10))
 
-        self.builder_media_entry = ctk.CTkEntry(m_box, placeholder_text="Path file media...")
+        self.builder_media_entry = ctk.CTkEntry(m_box, placeholder_text="Path file media atau folder...")
         self.builder_media_entry.insert(0, str(ASSETS_DIR / "images" / "sample_pupuk.jpg"))
-        self.builder_media_entry.pack(side="left", fill="x", expand=True, padx=(0, 10))
+        self.builder_media_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
-        ctk.CTkButton(m_box, text="Pilih Media...", width=100, command=self._select_media_file).pack(side="left")
+        ctk.CTkButton(m_box, text="Pilih File...", width=95, command=self._select_media_file).pack(side="left", padx=(0, 4))
+        self.builder_folder_btn = ctk.CTkButton(
+            m_box,
+            text="📁 Pilih Folder...",
+            width=115,
+            fg_color="#4f46e5",
+            hover_color="#4338ca",
+            command=self._select_media_folder,
+        )
+        self.builder_folder_btn.pack(side="left")
 
         # 6. Parameter Spesifik Platform (Harga untuk Carousell, dsb)
         self.builder_extra_frame = ctk.CTkFrame(frame, fg_color="transparent")
@@ -1363,7 +1506,7 @@ class AutoPostingGUI(ctk.CTk):
         elif value == "YouTube":
             self.builder_title_entry.delete(0, "end")
             self.builder_title_entry.insert(0, "Rahasia {keyword_title} Hasil Panen Melimpah")
-            self.builder_media_label.configure(text="5. File Video (.mp4):")
+            self.builder_media_label.configure(text="5. File Video (.mp4) atau 📁 Folder Banyak Video Canva:")
             self.builder_media_entry.delete(0, "end")
             self.builder_media_entry.insert(0, str(ASSETS_DIR / "videos" / "sample_sawit_15s.mp4"))
             self.builder_extra_frame.pack_forget()
@@ -1390,11 +1533,22 @@ class AutoPostingGUI(ctk.CTk):
         if plat == "Carousell":
             types = [("Image Files", "*.jpg;*.png;*.jpeg;*.webp")]
         elif plat == "YouTube":
-            types = [("Video Files", "*.mp4;*.mov;*.mkv")]
+            types = [("Video Files", "*.mp4;*.mov;*.mkv;*.webm;*.avi")]
         else:
             types = [("PDF Documents", "*.pdf")]
 
         f = filedialog.askopenfilename(initialdir=str(ASSETS_DIR), title="Pilih File Media", filetypes=types)
+        if f:
+            self.builder_media_entry.delete(0, "end")
+            self.builder_media_entry.insert(0, f)
+
+    def _select_media_folder(self):
+        plat = self.builder_platform_var.get().lower()
+        init_dir = ASSETS_DIR / "videos" if plat == "youtube" else (ASSETS_DIR / "images" if plat == "carousell" else BASE_DIR)
+        f = filedialog.askdirectory(
+            initialdir=str(init_dir if init_dir.exists() else BASE_DIR),
+            title="Pilih Folder Berisi Kumpulan Video/Media (Hasil Canva)",
+        )
         if f:
             self.builder_media_entry.delete(0, "end")
             self.builder_media_entry.insert(0, f)
@@ -1491,10 +1645,28 @@ class AutoPostingGUI(ctk.CTk):
         self.max_delay_entry.insert(0, str(MAX_POST_DELAY))
         self.max_delay_entry.pack(side="left")
 
-        # Dry Run Checkbox
+        # Checkboxes: Dry Run & Test Mode (Private)
+        chk_box = ctk.CTkFrame(ctrl_frame, fg_color="transparent")
+        chk_box.grid(row=1, column=2, columnspan=3, padx=10, pady=8, sticky="w")
+
         self.dry_run_var = ctk.BooleanVar(value=False)
-        self.dry_run_check = ctk.CTkCheckBox(ctrl_frame, text="Dry-Run (Hanya uji coba form tanpa terbit final)", variable=self.dry_run_var)
-        self.dry_run_check.grid(row=1, column=2, columnspan=2, padx=10, pady=8, sticky="w")
+        self.dry_run_check = ctk.CTkCheckBox(
+            chk_box,
+            text="Dry-Run (Form saja)",
+            variable=self.dry_run_var,
+        )
+        self.dry_run_check.pack(side="left", padx=(0, 15))
+
+        self.test_mode_var = ctk.BooleanVar(value=False)
+        self.test_mode_check = ctk.CTkCheckBox(
+            chk_box,
+            text="🧪 Mode Test (Upload sebagai Private / Pribadi)",
+            variable=self.test_mode_var,
+            text_color="#c084fc",
+            fg_color="#7c3aed",
+            hover_color="#6d28d9",
+        )
+        self.test_mode_check.pack(side="left")
 
         # CSV Source Indicator Row
         src_box = ctk.CTkFrame(tab, fg_color="transparent")
@@ -1635,6 +1807,7 @@ class AutoPostingGUI(ctk.CTk):
             max_posts = 0
 
         dry_run = self.dry_run_var.get()
+        test_mode = self.test_mode_var.get()
 
         self.is_posting_running = True
         self.stop_requested = False
@@ -1642,10 +1815,11 @@ class AutoPostingGUI(ctk.CTk):
         self.stop_btn.configure(state="normal")
 
         self.log(f"=== MEMULAI SESI POSTING: {plat.upper()} ===")
-        self.log(f"Target CSV: {csv_file.name} | Max Posts: {max_posts or 'Semua'} | Dry-Run: {dry_run}")
+        mode_desc = "DRY-RUN (Form saja)" if dry_run else ("MODE TEST (Upload Private)" if test_mode else "PRODUKSI (Publik)")
+        self.log(f"Target CSV: {csv_file.name} | Max Posts: {max_posts or 'Semua'} | Mode: {mode_desc}")
 
         def worker():
-            asyncio.run(self._async_posting_worker(plat, csv_file, max_posts, dry_run))
+            asyncio.run(self._async_posting_worker(plat, csv_file, max_posts, dry_run, test_mode))
 
         self.posting_thread = threading.Thread(target=worker, daemon=True)
         self.posting_thread.start()
@@ -1656,7 +1830,7 @@ class AutoPostingGUI(ctk.CTk):
             self.log("⚠️ Permintaan STOP diterima. Menyelesaikan postingan yang sedang berjalan...")
             self.stop_btn.configure(state="disabled")
 
-    async def _async_posting_worker(self, platform: str, csv_path: Path, max_posts: int, dry_run: bool):
+    async def _async_posting_worker(self, platform: str, csv_path: Path, max_posts: int, dry_run: bool, test_mode: bool = False):
         from modules.browser_manager import BrowserManager
         bm = BrowserManager()
 
@@ -1695,7 +1869,7 @@ class AutoPostingGUI(ctk.CTk):
                         url = await process_carousell_post(page, row, dry_run=dry_run)
                     elif platform == "YouTube":
                         from poster_youtube import upload_youtube_video
-                        url = await upload_youtube_video(page, row, dry_run=dry_run)
+                        url = await upload_youtube_video(page, row, dry_run=dry_run, test_mode=test_mode)
                     else:
                         from poster_issuu import publish_issuu_pdf
                         url = await publish_issuu_pdf(page, row, dry_run=dry_run)

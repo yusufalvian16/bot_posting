@@ -33,16 +33,21 @@ from modules.logger import log_error, log_header, log_info, log_success, log_war
 STUDIO_URL = "https://studio.youtube.com"
 
 
-async def upload_youtube_video(page, row: dict, dry_run: bool = False) -> str:
+async def upload_youtube_video(page, row: dict, dry_run: bool = False, test_mode: bool = False) -> str:
     """
     Menjalankan alur upload video YouTube Studio untuk 1 video.
     Mengembalikan URL video setelah diunggah.
+    Jika test_mode=True, visibilitas dipaksa ke 'Private' (Pribadi) agar aman saat testing.
     """
     title = row.get("title", "").strip()
     video_path_raw = row.get("video_path", "").strip()
     description = row.get("description", "").strip()
     vis_raw = row.get("visibility", "Public").strip().lower()
-    if vis_raw in ["unlisted", "tidak publik", "tidak_publik"]:
+
+    if test_mode:
+        visibility = "Private"
+        log_info("🧪 [MODE TEST AKTIF] Visibilitas video dipaksa ke 'Private' (Pribadi) untuk pengujian aman.")
+    elif vis_raw in ["unlisted", "tidak publik", "tidak_publik"]:
         visibility = "Unlisted"
     elif vis_raw in ["private", "pribadi"]:
         visibility = "Private"
@@ -225,6 +230,11 @@ async def main():
         help="Jalankan hingga pengisian detail tanpa mengklik tombol Publish/Done",
     )
     parser.add_argument(
+        "--test-mode",
+        action="store_true",
+        help="Jalankan upload lengkap namun paksa visibilitas ke 'Private' (Pribadi) untuk pengujian aman",
+    )
+    parser.add_argument(
         "--max-posts",
         "-m",
         type=int,
@@ -251,6 +261,8 @@ async def main():
         log_info(f"Membatasi eksekusi hingga {args.max_posts} video.")
 
     log_header(f"YouTube Bot: {len(pending_items)} Video Antri")
+    if args.test_mode:
+        log_warn("🧪 MODE TEST DIAKTIFKAN: Semua video akan disetel ke Private (Pribadi).")
 
     # Inisialisasi Browser CDP
     bm = BrowserManager()
@@ -265,7 +277,7 @@ async def main():
             log_header(f"[{i}/{len(pending_items)}] Mengunggah: {title[:50]}...")
 
             try:
-                post_url = await upload_youtube_video(page, row, dry_run=args.dry_run)
+                post_url = await upload_youtube_video(page, row, dry_run=args.dry_run, test_mode=args.test_mode)
                 update_row_status(
                     filepath=csv_path,
                     fieldnames=fieldnames,

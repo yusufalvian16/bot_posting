@@ -173,3 +173,50 @@ def get_csv_progress_stats(rows: List[Dict[str, str]]) -> Dict[str, any]:
         "next_pending_index": next_pending_idx,
     }
 
+
+def natural_sort_key(s: any) -> list:
+    """
+    Key untuk pengurutan alami (natural sort).
+    Misal: 'video 2.mp4' akan berada sebelum 'video 10.mp4'.
+    """
+    import re
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', str(s))]
+
+
+def scan_media_files_in_dir(folder_path: Path, extensions: Optional[List[str]] = None) -> List[Path]:
+    """
+    Memindai file media dalam sebuah folder dan mengurutkannya secara alami.
+    Default ekstensi: .mp4, .mov, .mkv, .webm, .avi, .m4v.
+    """
+    if not extensions:
+        extensions = [".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v"]
+    exts = {e.lower() if e.startswith(".") else f".{e.lower()}" for e in extensions}
+
+    p = Path(folder_path)
+    if not p.is_dir():
+        return []
+
+    found = [f for f in p.iterdir() if f.is_file() and f.suffix.lower() in exts]
+    found.sort(key=lambda x: natural_sort_key(x.name))
+    return found
+
+
+def write_canva_csv(filepath: Path, keywords: List[str]):
+    """
+    Membuat file CSV 1-kolom khusus untuk fitur 'Bulk Create' (Buat Banyak) Canva.
+    Format:
+    Kata Kunci
+    keyword 1
+    keyword 2
+    """
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+    with open(filepath, mode="w", encoding="utf-8-sig", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Kata Kunci"])
+        for kw in keywords:
+            clean = str(kw).strip()
+            if clean:
+                writer.writerow([clean])
+    log_info(f"Berhasil mengekspor {len(keywords)} kata kunci untuk Canva di: {filepath}")
+
+

@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import List, Dict
 
 from config import DATA_DIR, CAROUSELL_CSV, YOUTUBE_CSV, ISSUU_CSV
-from modules.csv_handler import read_csv_data, write_new_csv
+from modules.csv_handler import read_csv_data, write_new_csv, scan_media_files_in_dir
 from modules.logger import log_error, log_header, log_info, log_success, log_warn
 
 
@@ -105,12 +105,22 @@ def build_youtube_csv(
         "error_msg",
         "posted_at",
     ]
+
+    # Cek apakah video_path merujuk ke folder atau file tunggal
+    p_media = Path(video_path.strip())
+    video_files = []
+    if p_media.is_dir():
+        video_files = scan_media_files_in_dir(p_media)
+        log_info(f"Ditemukan {len(video_files)} file video di folder: {p_media}")
+
     posts = []
+    valid_kw_count = 0
 
     for r in raw_rows:
         kw = r.get("keyword", "").strip()
         if not kw:
             continue
+
         title = format_title(title_template, kw)
         # Batasi judul YouTube maksimal 100 karakter
         if len(title) > 100:
@@ -118,9 +128,19 @@ def build_youtube_csv(
 
         desc = format_title(desc_template, kw)
 
+        # Tentukan path video untuk baris ini
+        if video_files:
+            v_file = video_files[valid_kw_count % len(video_files)]
+            try:
+                assigned_path = str(v_file.relative_to(Path.cwd()))
+            except ValueError:
+                assigned_path = str(v_file)
+        else:
+            assigned_path = video_path
+
         posts.append({
             "title": title,
-            "video_path": video_path,
+            "video_path": assigned_path,
             "description": desc,
             "tags": tags,
             "visibility": visibility,
@@ -130,6 +150,7 @@ def build_youtube_csv(
             "error_msg": "",
             "posted_at": "",
         })
+        valid_kw_count += 1
 
     write_new_csv(output_file, fieldnames, posts)
     log_success(f"Berhasil membuat {len(posts)} baris untuk YouTube di: {output_file}")

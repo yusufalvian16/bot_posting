@@ -78,9 +78,42 @@ flowchart TD
 
 ---
 
-## 🚀 3. Rancangan Fitur Selanjutnya (Roadmap Phase 3 & Beyond)
+## 🚀 3. Rancangan Fitur Spesifik Canva & Multi-Video (Phase 3)
 
-Berikut adalah cetak biru teknis untuk fitur-fitur baru yang direkomendasikan:
+Berikut adalah cetak biru teknis untuk 3 fitur yang diminta:
+
+### 🎨 Fitur C1: Tombol "Ekspor ke Canva" (Canva Bulk Create 1-Kolom CSV)
+- **Tujuan**: Memungkinkan pengguna langsung mengunduh daftar kata kunci hasil riset untuk diumpankan ke fitur *"Bulk Create"* (Buat Banyak) pada Canva, guna memproduksi puluhan hingga ratusan template video secara massal.
+- **Format Data**:
+  - Kolom tunggal dengan header: `Kata Kunci`.
+  - Satu baris per kata kunci tanpa kolom tambahan lain (`category`, `scraped_at`, dll) agar Canva tidak bingung memetakan variabel teks.
+- **Integrasi GUI**:
+  - Tombol ungu `🎨 Ekspor ke Canva (Bulk Create)` di toolbar bawah Tab 3 (*🔍 Riset Kata Kunci*).
+  - Menyimpan file ke `data/canva_bulk_keywords.csv` atau lokasi pilihan pengguna melalui file dialog.
+
+### 📁 Fitur C2: Batch Video Folder Importer (Pemetaan Otomatis Banyak Video ke CSV)
+- **Tujuan**: Memetakan otomatis puluhan/ratusan file video hasil download dari Canva (biasanya diekstrak ke satu folder) ke dalam kolom `video_path` baris-baris CSV antrian, tanpa perlu copy-paste manual satu per satu.
+- **Mekanisme & Natural Sorting**:
+  1. Pengguna memilih folder berisi kumpulan video (`.mp4`, `.mov`, `.mkv`, `.webm`).
+  2. Sistem membaca file dan mengurutkan dengan **Natural Sort** (misal: `video 1.mp4`, `video 2.mp4` ... `video 10.mp4`, bukan urutan teks biasa yang meletakkan `10` sebelum `2`).
+  3. Mengisi kolom `video_path` dari baris 1 s/d N secara berurutan.
+- **Lokasi Integrasi**:
+  - **Titik A (Tab 1: CSV Manager & Progres)**: Tombol `📁 Import Folder Video` di toolbar atas.
+  - **Titik B (Tab 4: Template Builder)**: Pilihan mode media `File Tunggal` vs `📁 Folder Banyak Video`.
+
+### 🧪 Fitur C3: Mode Test YouTube (Visibilitas "Private" / Pribadi)
+- **Tujuan**: Menjalankan pengujian nyata upload YouTube Studio secara menyeluruh (verifikasi form, proses upload, deteksi link `https://youtu.be/...`), namun **TIDAK mempublikasikan video ke publik** agar tidak terlihat oleh penonton/subscriber channel.
+- **Perbedaan Mendasar**:
+  - **Dry-Run**: Mengisi form tapi *berhenti sebelum mengklik tombol Simpan/Publikasi* (tidak ada video yang tersimpan di YouTube).
+  - **Mode Test (Private)**: *Menuntaskan seluruh proses upload hingga selesai terbit*, tetapi opsi visibilitas dipaksa ke **"Private" (Pribadi)** alih-alih "Public".
+- **Integrasi GUI & Engine**:
+  - Checkbox toggle `🧪 Mode Test (Upload sebagai Private / Pribadi)` di Tab 2 (*🚀 Bot Runner*).
+  - Parameter `test_mode: bool = False` pada fungsi `upload_youtube_video()` di `poster_youtube.py`.
+  - Dukungan argumen CLI `--test-mode` pada `poster_youtube.py`.
+
+---
+
+## 🔮 4. Rancangan Fitur Tambahan (Roadmap Lanjutan)
 
 ### Fitur R1: Pre-flight Media File Validator (Pengecekan Media Otomatis)
 - **Tujuan**: Mencegah bot berhenti di tengah jalan akibat file video/gambar/PDF yang hilang, rusak, atau salah ketik path.
