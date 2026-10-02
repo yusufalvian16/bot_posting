@@ -1485,6 +1485,17 @@ class AutoPostingGUI(ctk.CTk):
         self.condition_option = ctk.CTkOptionMenu(self.builder_extra_frame, values=["Baru", "Bekas"])
         self.condition_option.pack(side="left")
 
+        # 7. Lokasi & Nama File CSV Output (Siap Diposting)
+        ctk.CTkLabel(frame, text="6. Lokasi & Nama File CSV Antrian (Output):", font=ctk.CTkFont(weight="bold")).pack(anchor="w", pady=(5, 2))
+        out_box = ctk.CTkFrame(frame, fg_color="transparent")
+        out_box.pack(fill="x", pady=(0, 15))
+
+        self.builder_output_entry = ctk.CTkEntry(out_box, placeholder_text="Path file CSV antrian output...")
+        self.builder_output_entry.insert(0, str(CAROUSELL_CSV))
+        self.builder_output_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+
+        ctk.CTkButton(out_box, text="Pilih Lokasi...", width=105, command=self._select_output_csv).pack(side="left")
+
         # Tombol Eksekusi
         self.generate_csv_btn = ctk.CTkButton(
             tab,
@@ -1518,6 +1529,13 @@ class AutoPostingGUI(ctk.CTk):
             self.builder_media_entry.insert(0, str(ASSETS_DIR / "docs" / "sample_katalog.pdf"))
             self.builder_extra_frame.pack_forget()
 
+        default_csv = CAROUSELL_CSV if value == "Carousell" else (YOUTUBE_CSV if value == "YouTube" else ISSUU_CSV)
+        if hasattr(self, "builder_output_entry"):
+            curr_out = self.builder_output_entry.get().strip()
+            if not curr_out or curr_out in [str(CAROUSELL_CSV), str(YOUTUBE_CSV), str(ISSUU_CSV)]:
+                self.builder_output_entry.delete(0, "end")
+                self.builder_output_entry.insert(0, str(default_csv))
+
     def _select_keywords_csv(self):
         f = filedialog.askopenfilename(
             initialdir=str(KEYWORDS_DIR),
@@ -1527,6 +1545,13 @@ class AutoPostingGUI(ctk.CTk):
         if f:
             self.builder_input_entry.delete(0, "end")
             self.builder_input_entry.insert(0, f)
+            # Smart default output filename based on keyword stem
+            kw_stem = Path(f).stem.replace("keywords_", "")
+            plat = self.builder_platform_var.get().lower()
+            suggested_out = DATA_DIR / f"{plat}_{kw_stem}.csv"
+            if hasattr(self, "builder_output_entry"):
+                self.builder_output_entry.delete(0, "end")
+                self.builder_output_entry.insert(0, str(suggested_out))
 
     def _select_media_file(self):
         plat = self.builder_platform_var.get()
@@ -1553,6 +1578,20 @@ class AutoPostingGUI(ctk.CTk):
             self.builder_media_entry.delete(0, "end")
             self.builder_media_entry.insert(0, f)
 
+    def _select_output_csv(self):
+        plat = self.builder_platform_var.get().lower()
+        default_name = f"{plat}_posts.csv"
+        f = filedialog.asksaveasfilename(
+            initialdir=str(DATA_DIR),
+            initialfile=default_name,
+            title="Pilih Lokasi Simpan File CSV Antrian",
+            defaultextension=".csv",
+            filetypes=[("CSV Files", "*.csv")],
+        )
+        if f:
+            self.builder_output_entry.delete(0, "end")
+            self.builder_output_entry.insert(0, f)
+
     def _generate_platform_csv(self):
         in_file = Path(self.builder_input_entry.get().strip())
         if not in_file.exists():
@@ -1564,8 +1603,14 @@ class AutoPostingGUI(ctk.CTk):
         desc_tmpl = self.builder_desc_entry.get().strip()
         media_p = self.builder_media_entry.get().strip()
 
+        # Gunakan path output yang ditentukan pengguna
+        out_p_str = self.builder_output_entry.get().strip()
+        if out_p_str:
+            out_p = Path(out_p_str)
+        else:
+            out_p = CAROUSELL_CSV if plat == "carousell" else (YOUTUBE_CSV if plat == "youtube" else ISSUU_CSV)
+
         if plat == "carousell":
-            out_p = CAROUSELL_CSV
             build_carousell_csv(
                 input_file=in_file,
                 output_file=out_p,
@@ -1577,7 +1622,6 @@ class AutoPostingGUI(ctk.CTk):
                 category="Gardening",
             )
         elif plat == "youtube":
-            out_p = YOUTUBE_CSV
             build_youtube_csv(
                 input_file=in_file,
                 output_file=out_p,
@@ -1589,7 +1633,6 @@ class AutoPostingGUI(ctk.CTk):
                 made_for_kids="false",
             )
         else:
-            out_p = ISSUU_CSV
             build_issuu_csv(
                 input_file=in_file,
                 output_file=out_p,
@@ -1598,9 +1641,21 @@ class AutoPostingGUI(ctk.CTk):
                 pdf_path=media_p,
             )
 
-        messagebox.showinfo("Sukses", f"Berhasil membuat file antrian posting:\n{out_p}\n\nAnda dapat menjalankannya di Tab Bot Auto-Posting.")
+        # Otomatis muat file baru ke CSV Manager dan siapkan di Bot Runner
+        self.load_csv_file(out_p)
+        self.custom_poster_csv = out_p
         self.poster_platform_seg.set(self.builder_platform_var.get())
         self._on_poster_platform_change(self.builder_platform_var.get())
+
+        switch_tab = messagebox.askyesno(
+            "Antrian Siap Diposting",
+            f"✅ Berhasil membuat file antrian baru:\n{out_p.name}\n\n"
+            f"Lokasi: {out_p}\n\n"
+            "File ini telah otomatis dimuat ke Tab 'CSV Manager' dan siap diposting!\n\n"
+            "Apakah Anda ingin membuka Tab 'CSV Manager & Progres' sekarang untuk melihat tabelnya?",
+        )
+        if switch_tab:
+            self.tabview.set("📊 CSV Manager & Progres")
 
     # =========================================================================
     # TAB 3: BOT AUTO-POSTING & LIVE MONITOR

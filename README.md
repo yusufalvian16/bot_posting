@@ -1,11 +1,11 @@
 # Multi-Platform Mass Auto-Posting & Keyword Intelligence Bot
 
-Ekosistem bot otomasi modular berbasis **Python** dan **Google Chrome Asli (via CDP / Remote Debugging)** untuk riset kata kunci Google Suggest (Alphabet Soup A-Z + 0-9) dan posting massal otomatis ke:
-1. **Carousell Marketplace** (`carousell.com`)
-2. **YouTube Studio** (Video reguler & Shorts)
-3. **Issuu** (Publikasi Dokumen PDF)
+Ekosistem bot otomasi desktop modern berbasis **Python**, **CustomTkinter GUI**, dan **Google Chrome Asli (via CDP / Remote Debugging)** untuk riset kata kunci Google Suggest (Alphabet Soup A-Z + 0-9), integrasi pembuatan video Canva, dan posting massal otomatis ke:
+1. **YouTube Studio** (Video reguler & Shorts — 100% Publik atau Mode Test Private)
+2. **Carousell Marketplace** (`carousell.com` — Kategori Gardening, Foto, Harga)
+3. **Issuu** (Publikasi Dokumen PDF Katalog)
 
-Sistem ini didesain **modular dan mandiri** (setiap platform memiliki script dan file CSV terpisah), aman dari deteksi bot (`navigator.webdriver` bernilai `false`), dan 100% kompatibel di **Windows** dan **Linux**.
+Sistem ini didesain **modular dan mandiri**, aman dari deteksi bot (`navigator.webdriver` bernilai `false`), dan 100% kompatibel di **Windows** dan **Linux** dengan integrasi *"Open With"* klik kanan langsung dari File Explorer.
 
 ---
 
@@ -13,36 +13,63 @@ Sistem ini didesain **modular dan mandiri** (setiap platform memiliki script dan
 
 ```
 Bot-Posting/
+├── app_gui.py                       # Aplikasi Desktop GUI Utama (CustomTkinter)
 ├── assets/                          # Folder aset media Anda
 │   ├── images/                      # Foto produk Carousell (.jpg / .png)
 │   ├── videos/                      # Video YouTube (.mp4)
+│   │   └── samples_10/              # 10 Video sampel uji coba (10s H.264/AAC)
 │   └── docs/                        # Dokumen PDF Issuu (.pdf)
-├── data/                            # Folder data CSV
+├── data/                            # Folder data CSV antrian
 │   ├── keywords_raw/                # Hasil scraping kata kunci Google Suggest
 │   ├── carousell_posts.csv          # Antrian posting Carousell
-│   ├── youtube_posts.csv            # Antrian upload YouTube
+│   ├── youtube_posts.csv            # Antrian upload YouTube default
 │   └── issuu_posts.csv              # Antrian publikasi Issuu
-├── launchers/                       # Script pembuka Chrome Remote Debugging
-│   ├── start_chrome_windows.bat     # Untuk pengguna Windows
-│   └── start_chrome_linux.sh        # Untuk pengguna Linux
+├── launchers/                       # Script pembuka Chrome & shortcut OS
+│   ├── setup_windows.bat            # 1-Click Installer untuk Windows
+│   ├── register_open_with_windows.bat # Registrasi klik kanan "Open With" Windows
+│   ├── start_chrome_windows.bat     # Chrome Remote Debugging Windows
+│   ├── start_chrome_linux.sh        # Chrome Remote Debugging Linux
+│   ├── start_gui_windows.bat        # Launcher GUI Windows
+│   └── start_gui_linux.sh           # Launcher GUI Linux
 ├── modules/                         # Core engine otomasi
-│   ├── browser_manager.py           # Konektor CDP ke Google Chrome
+│   ├── browser_manager.py           # Konektor CDP ke Google Chrome (Port 9222)
 │   ├── human_emulator.py            # Simulasi ketikan & jeda manusiawi
-│   ├── csv_handler.py               # Pengelola status & atomic CSV write
+│   ├── csv_handler.py               # Pengelola status, atomic CSV write & natural sort
 │   └── logger.py                    # Terminal output berwarna (Rich)
+├── scripts/                         # Script utility pendukung
+│   └── generate_10_samples.py       # Pembuat 10 video sampel MP4 (FFmpeg)
 ├── config.py                        # Pengaturan delay, port, timeout
 ├── scraper_keyword.py               # Script Mandiri: Riset kata kunci Google (Alphabet Soup)
 ├── builder_template.py              # Utility: Konversi kata kunci ke CSV platform
 ├── poster_carousell.py              # Script Mandiri: Bot posting Carousell
-├── poster_youtube.py                # Script Mandiri: Bot upload YouTube
+├── poster_youtube.py                # Script Mandiri: Bot upload YouTube (Public & Test Mode)
 ├── poster_issuu.py                  # Script Mandiri: Bot publish Issuu
+├── INSTALL_WINDOWS.md               # Panduan instalasi lengkap di Windows
+├── plan.md                          # Dokumen master rancangan & roadmap fitur
 ├── requirements.txt                 # Dependensi Python
-└── PRD.md                           # Product Requirement Document lengkap
+├── setup_windows.bat                # Shortcut 1-Click Installer Windows
+├── start_gui.bat                    # Shortcut buka aplikasi GUI Windows
+└── start_chrome.bat                 # Shortcut buka Chrome Windows
 ```
 
 ---
 
-## 🚀 Panduan Langkah Demi Langkah
+## 🖥️ Menjalankan Aplikasi Desktop GUI
+
+Cara termudah dan paling direkomendasikan adalah menggunakan antarmuka GUI:
+
+* **Di Windows**: Cukup klik dua kali [**`start_gui.bat`**](file:///home/yusuf/Projects/Bot-Posting/start_gui.bat) atau klik kanan file `.csv` -> pilih *"Buka dengan Bot Auto-Posting"*.
+* **Di Linux**: Jalankan `./start_gui.sh` atau `python app_gui.py`.
+
+### 4 Tab Utama dalam Aplikasi:
+1. **📊 CSV Manager & Progres**: Menampilkan status antrian (`success`, `pending`, `failed`), progress bar real-time, live search, edit baris interaktif, tombol *Reset Gagal*, serta tombol **`📁 Import Folder Video`** untuk memetakan puluhan video secara otomatis.
+2. **🤖 Bot Auto-Posting**: Eksekusi posting ke YouTube, Carousell, atau Issuu dengan terminal live log, pengaturan jeda acak anti-spam, tombol STOP aman, dan **`🧪 Mode Test (Private)`** untuk uji coba aman.
+3. **🔍 Riset Kata Kunci**: Scraper Google Suggest berbasis Alphabet Soup (A-Z & 0-9) dengan tombol **`🎨 Ekspor ke Canva (Bulk Create)`** (1 kolom CSV) untuk memproduksi ratusan video di Canva secara instan.
+4. **📝 Template Builder**: Meracik pola judul dan deskripsi otomatis, mendukung pemilihan file media tunggal ataupun **Folder Banyak Video**, serta penamaan file CSV output kustom tanpa menimpa file lama.
+
+---
+
+## 🚀 Panduan CLI Mandiri (Command Line)
 
 ### Langkah 1: Instalasi Dependensi Python
 

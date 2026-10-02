@@ -111,6 +111,14 @@ Berikut adalah cetak biru teknis untuk 3 fitur yang diminta:
   - Parameter `test_mode: bool = False` pada fungsi `upload_youtube_video()` di `poster_youtube.py`.
   - Dukungan argumen CLI `--test-mode` pada `poster_youtube.py`.
 
+### 📂 Fitur C4: Penamaan File CSV Output Dinamis & Multi-Kampanye (SELESAI ✅)
+- **Tujuan**: Menghentikan penimpaan file default tunggal (`youtube_posts.csv`) dan memungkinkan pengguna membuat, menyimpan, serta mengelola banyak file antrian posting yang berbeda (misal: berdasarkan produk, niche, atau kampanye berbeda).
+- **Mekanisme**:
+  1. Input lokasi dan nama file CSV output di Tab *📝 Template Builder* (`builder_output_entry`) dengan tombol *Pilih Lokasi...*.
+  2. Pemberian saran nama otomatis (*smart auto-naming*) saat memilih file kata kunci (misal: `keywords_pupuk_sawit.csv` -> otomatis menyarankan `youtube_pupuk_sawit.csv`).
+  3. Setelah digenerate, file langsung otomatis terhubung (*piped*) ke Tab 1 (*CSV Manager & Progres*) dan diatur sebagai antrian aktif di Tab 2 (*Bot Runner*).
+  4. Pengguna bebas membuka, menyunting, dan berpindah antar file kampanye kapan saja melalui tombol *📂 Buka CSV...*.
+
 ---
 
 ## 🔮 4. Rancangan Fitur Tambahan (Roadmap Lanjutan)
