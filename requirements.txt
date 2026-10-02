@@ -1,0 +1,6 @@
+playwright>=1.40.0
+requests>=2.31.0
+rich>=13.7.0
+customtkinter>=6.0.0
+darkdetect>=0.8.0
+python-dotenv>=1.0.0

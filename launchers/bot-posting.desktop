@@ -1,0 +1,11 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Bot Auto-Posting & CSV Manager
+Comment=Multi-Platform Mass Auto-Posting & CSV Progress Controller
+Exec=/home/yusuf/Projects/Bot-Posting/launchers/start_gui_linux.sh %f
+Icon=utilities-terminal
+Terminal=false
+Categories=Office;Development;Network;
+MimeType=text/csv;application/csv;text/x-csv;
+StartupNotify=true
